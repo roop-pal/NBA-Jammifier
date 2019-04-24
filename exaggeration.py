@@ -13,6 +13,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 import scipy.ndimage
+import numpy.polynomial.polynomial as poly
+
 
 
 def center_of_mass(gif, debug=0, folder='russ_dunk'):
@@ -65,8 +67,100 @@ def center_of_mass(gif, debug=0, folder='russ_dunk'):
     return gauss20
 
 
+def poly_reg(x,y):
+  # returns a polynomial fit to given x and y points
+  coefs = poly.polyfit(x, y, 2)
+  ffit = poly.Polynomial(coefs)
+  return ffit
+
+
+def apply_poly(x,poly):
+  # returns corresponding y points to the x points given, given the polynomial function
+  x_new = np.linspace(x[0], x[-1], num=len(x))
+  exp_x_new = np.expand_dims(x_new,axis=1)
+  exp_y_new = np.expand_dims(poly(x_new),axis=1)
+  return np.concatenate([exp_x_new,exp_y_new],axis=1)
+
+
+def RANSAC_poly(x, y, max_iter, eps):
+    # Input:
+    #     x: set of x points
+    #     y: set of y points
+    #     max_iter: max iteration number of RANSAC
+    #     eps: tolerance of RANSAC
+    # Output:
+    #     inliers_id: the indices of matched pairs when using the homography given by RANSAC
+    #     poly: the polynomial regressor
+    n = x.shape[0]
+    inliers_id = []
+    max_inliers = 0
+    poly = None
+    for i in range(max_iter):
+        idxs = np.random.randint(n, size=4)
+        src_pts = np.array([x[idxs[0]], x[idxs[1]], x[idxs[2]], x[idxs[3]]])
+        dst_pts = np.array([y[idxs[0]], y[idxs[1]], y[idxs[2]], y[idxs[3]]])
+        temp_poly = poly_reg(src_pts, dst_pts)
+        fit_pts = apply_poly(x, temp_poly)
+        temp_inliers = []
+        temp_max = 0
+        for j in range(n):
+            dist = np.linalg.norm(fit_pts[j][1] - y[j])
+            if dist <= eps:
+                temp_inliers.append(j)
+                temp_max += 1
+        if temp_max > max_inliers:
+            inliers_id = temp_inliers
+            max_inliers = temp_max
+            poly = temp_poly
+
+    return inliers_id, poly
+
+def exaggerated_poly(gauss20, exaggeration=100, ):
+    #Outputs:
+    #  x_poly - list of x points for exaggerated poly
+    #  y_poly_final - list of y points for exaggerated poly
+    #  idxs_to_adjust - list of indexs of x_poly where jump occurs
+
+    # x and y inputs for RANSAC
+    x = np.linspace(0, len(gauss20), num=len(gauss20))
+    y = np.asarray(gauss20)
+
+    # poly = polynomial fit by RANSAC
+    _, poly = RANSAC_poly(x, y, 1000, 3)
+    # y points for polynomial
+    y_poly = poly(x)
+
+    # find where dunk occurs by looking at where gauss20 intersects with polynomial
+    idxs_to_adjust = []
+
+    for idx, pt in enumerate(gauss20):
+        if np.absolute(pt - y_poly[idx]) < 5:
+            idxs_to_adjust.append(idx)
+
+    # Take left most point, highest point + exaggeration (but minus cause images), right most point, then fit new polynomial to those
+
+    xs_fit = [idxs_to_adjust[0], np.argmin(y_poly), idxs_to_adjust[-1]]
+    ys_fit = [y_poly[idxs_to_adjust[0]], np.min(y_poly) - exaggeration, y_poly[idxs_to_adjust[-1]]]
+
+    new_poly = poly_reg(xs_fit, ys_fit)
+
+    # final polynomial
+    y_poly_final = new_poly(x)
+    return x, y_poly_final, idxs_to_adjust
+
+
 if __name__ == '__main__':
     stabilized_gif = imageio.mimread('russ_dunk/stabilized.gif', memtest=False)
+
+    # get smoothed trajectory
+    gauss20 = center_of_mass(stabilized_gif, debug=0, folder='russ_dunk')
+
+    # get exaggerated polynomial
+    x,y,idxs_to_adjust = exaggerated_poly(gauss20)
+
+
+
+
 
 
     # def shaped_mask(m):
