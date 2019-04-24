@@ -97,6 +97,7 @@ def intersection_count(m1, m2):
   return np.sum(np.logical_and(m1,m2))
 
 
+# Main function to use in this file
 def get_masks(gif, xy, mask_rcnn_model, save=True, save_path= '.'):
     #Input:
     # gif - iterable of images
