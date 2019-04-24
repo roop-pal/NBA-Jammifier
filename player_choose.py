@@ -12,18 +12,10 @@ def click(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
         refPt = (x, y)
 
-def click_window():
+def click_window(image):
     # initialize the list of reference points
     refPt = ()
 
-    # construct the argument parser and parse the arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--image", required=True, help="Path to the image")
-    args = vars(ap.parse_args())
-
-    # load the image, clone it, and setup the mouse callback function
-    image = cv2.imread(args["image"])
-    clone = image.copy()
     cv2.namedWindow("image")
     cv2.setMouseCallback("image", click)
 
@@ -35,7 +27,7 @@ def click_window():
 
         if key == ord("q"):
             break
-    # close all open windows
+    # close window
     cv2.destroyAllWindows()
     return refPt
 
