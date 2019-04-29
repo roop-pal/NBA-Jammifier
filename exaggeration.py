@@ -7,7 +7,6 @@ import math
 import numpy as np
 import skimage.io
 import matplotlib
-import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -15,9 +14,53 @@ from copy import deepcopy as copy
 import scipy.ndimage
 import numpy.polynomial.polynomial as poly
 
+#Max
+def get_centroid_of_mask_pts(points):
+#Input: x,y points of mask
+#Output: centroid of given points
+    x = points[:,0]
+    y = points[:,1]
+    return (np.sum(x) / len(x), np.sum(y) / len(y))
+
+#Max
+def get_smoothed_trajectory(masks, Hs, gauss_num):
+#Input: masks from original gif, Hs
+#Output: x positions, adjusted y positions
+    centroids = []
+    for idx,mask in enumerate(masks):
+        if(idx == 0): pass
+        # convert mask to only xy points of player
+        mask_pts = zip(*np.nonzero(mask))
+        mask_pts = list(mask_pts)
+        mask_pts = np.asarray(mask_pts, dtype=np.float32)
+        mask_pts = mask_pts.reshape(-1, 1, 2) #reshape for perspectiveTransform
+        # transform points based on homography
+        transformed_mask_pts = cv2.perspectiveTransform(mask_pts,Hs[idx-1])
+        transformed_mask_pts = transformed_mask_pts.reshape(-1,2) #reshape back to normal
+        # get centroid
+        centroids.append(get_centroid_of_mask_pts(transformed_mask_pts))
+    centroids = np.asarray(centroids)
+
+    '''
+    import matplotlib
+
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    x_plot = np.linspace(0, len(masks), num=len(masks))
+    ax.plot(x_plot,centroids[:,1])
+    fig.savefig('centroids.png')
+    '''
 
 
-def center_of_mass(gif, debug=0, folder='russ_dunk'):
+    gauss20 = scipy.ndimage.filters.gaussian_filter1d(centroids[:,1], gauss_num)
+    return centroids[:,0], gauss20
+
+
+#Roop
+def center_of_mass(gif, debug=0, folder='./russ_dunk'):
     c = []
     for i in gif:
         # convert image to grayscale image
@@ -115,7 +158,7 @@ def RANSAC_poly(x, y, max_iter, eps):
 
     return inliers_id, poly
 
-def exaggerated_poly(gauss20, exaggeration=100, ):
+def exaggerated_poly(gauss20, exaggeration=50):
     #Outputs:
     #  x_poly - list of x points for exaggerated poly
     #  y_poly_final - list of y points for exaggerated poly
@@ -147,6 +190,64 @@ def exaggerated_poly(gauss20, exaggeration=100, ):
     # final polynomial
     y_poly_final = new_poly(x)
     return x, y_poly_final, idxs_to_adjust
+
+
+def overlay_pic(background, overlay):
+    return_image = np.empty_like(background)
+    for i in range(len(background)):
+        for j in range(len(background[i])):
+            return_image[i][j] = overlay[i][j][:3] if sum(overlay[i][j][:3]) > 0 else background[i][j]
+    return return_image
+
+def shaped_mask(m):
+    r = np.zeros((m.shape[0], m.shape[1], 3), dtype=np.uint8)
+    for i in range(3):
+        r[:,:,i] = m.copy()
+    return np.array(m, dtype=np.uint8)
+
+
+def move_mask(mask_pts, background, player, y_adj):
+  new_frame = np.array(background)
+  for pt in mask_pts:
+    if pt[0] - y_adj >= 0:
+      new_frame[pt[0] - y_adj,pt[1]] = player[pt[0],pt[1]]
+  return new_frame
+
+
+def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num):
+    overlayed = []
+    # reformat xs and ys
+    adj_centroids = np.zeros((len(xs), 2))
+    adj_centroids[:, 0], adj_centroids[:, 1] = xs, ys
+
+
+    for i in range(len(original_gif)):
+        if jump_start_frame_num < i < jump_end_frame_num:
+            # remove background from image
+            player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
+            # remove player from image
+            background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
+            # move mask up based on y adj
+            frame_3_deep = player[:, :, :3]
+            mask_pts = zip(*np.nonzero(frame_3_deep))
+            mask_pts = list(mask_pts)
+            mask_pts = np.asarray(mask_pts)
+
+
+            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
+            # transform points based on inverse homography
+            transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i - 1]))
+            transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
+            transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
+
+            y_adj = abs(transformed_centroid[1] - get_centroid_of_mask_pts(mask_pts)[1])
+            adj_player = move_mask(mask_pts, background, player, int(y_adj))
+            # overlay and append to gif
+            overlayed.append(adj_player)
+        else:
+            overlayed.append(original_gif[i])
+
+    return overlayed
 
 
 if __name__ == '__main__':

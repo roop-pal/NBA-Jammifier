@@ -1,72 +1,10 @@
-# SHOULD BE IN MAIN
-
-import os
-import sys
-import random
-import math
 import numpy as np
-import skimage.io
-import cv2
+from tqdm import tqdm
 
-# Root directory of the project
-ROOT_DIR = os.path.abspath("./Mask_RCNN")
+import imageio
+import scipy.misc
+import os
 
-# Import Mask RCNN
-sys.path.append(ROOT_DIR)  # To find local version of the library
-
-import mrcnn.model as modellib
-
-# Import COCO config
-sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
-import coco
-
-# Directory to save logs and trained model
-MODEL_DIR = os.path.join(ROOT_DIR, "logs")
-
-# Local path to trained weights file
-COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-# Download COCO trained weights from Releases if needed
-if not os.path.exists(COCO_MODEL_PATH):
-    utils.download_trained_weights(COCO_MODEL_PATH)
-
-# COCO Class names
-# Index of the class in the list is its ID. For example, to get ID of
-# the teddy bear class, use: class_names.index('teddy bear')
-
-class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
-               'bus', 'train', 'truck', 'boat', 'traffic light',
-               'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
-               'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
-               'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
-               'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-               'kite', 'baseball bat', 'baseball glove', 'skateboard',
-               'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-               'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-               'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-               'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
-               'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-               'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
-               'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
-               'teddy bear', 'hair drier', 'toothbrush']
-
-
-class InferenceConfig(coco.CocoConfig):
-    # Set batch size to 1 since we'll be running inference on
-    # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
-    GPU_COUNT = 1
-    IMAGES_PER_GPU = 1
-
-
-config = InferenceConfig()
-
-# Create model object in inference mode.
-model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
-
-# Load weights trained on MS-COCO
-model.load_weights(COCO_MODEL_PATH, by_name=True)
-
-
-# SHOULD BE IN MAIN^
 
 def nice_mask(r):
     #Input: results of mask rcnn
@@ -88,17 +26,31 @@ def nice_mask(r):
     return list(nice_masks)
 
 
-# return intersection count between masks
+# return intersection percentage between masks
+def intersection_percentage(m1, m2):
+    #Input:
+    # m1,m2 = masks
+    #Output:
+    # percentage of intersecting pixels
+  return np.sum(np.logical_and(m1,m2))/np.sum(m2)
+
+# return intersection sum between masks
 def intersection_count(m1, m2):
     #Input:
     # m1,m2 = masks
     #Output:
-    # number of intersecting pixels
+    # sum of intersecting pixels
   return np.sum(np.logical_and(m1,m2))
+
+def combine_masks(masks):
+    combined = np.zeros_like(masks[0])
+    for mask in masks:
+        combined = np.logical_or(combined,mask)
+    return combined
 
 
 # Main function to use in this file
-def get_masks(gif, xy, mask_rcnn_model, save=True, save_path= '.'):
+def get_masks(gif, xy, mask_rcnn_model, save=True, folder= './russ_dunk'):
     #Input:
     # gif - iterable of images
     # xy - tuple of point contained in player
@@ -108,8 +60,9 @@ def get_masks(gif, xy, mask_rcnn_model, save=True, save_path= '.'):
     #Output:
     # list of player mask for each frame in gif
     masks = []
-    for idx,frame in enumerate(gif):
+    for idx,frame in tqdm(enumerate(gif)):
         # Run detection
+        frame = frame[:, :, :3]
         results = mask_rcnn_model.detect([frame], verbose=1)
         r = results[0]
         all_masks = nice_mask(r)
@@ -119,13 +72,39 @@ def get_masks(gif, xy, mask_rcnn_model, save=True, save_path= '.'):
                 if mask[xy[1],xy[0]] == True:
                     masks.append(mask)
         else:
-            # append mask with highest intersection count
+            '''
+            #for debugging
+            try:
+                os.makedirs("./russ_dunk/frame"+str(idx))
+            except FileExistsError:
+                # directory already exists
+                pass
+            for i,mask in enumerate(all_masks):
+                scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/all_mask' + str(i)+ '.jpg', mask * 255)
+            scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/prev_mask.jpg', masks[-1] * 255)
+            '''
+
+            # combine masks with highest intersection percentage to account for Westbrook losing legs corner case
             player_mask_idx = np.argmax([intersection_count(masks[-1], i) for i in all_masks])
-            masks.append(all_masks[player_mask_idx])
+            mask_potentials = [intersection_percentage(masks[-1], i) for i in all_masks]
+            mask_potentials = [all_masks[mask_potentials.index(i)] for idx, i in enumerate(mask_potentials) if i > .8 and idx != player_mask_idx]
+            mask_potentials.append(all_masks[player_mask_idx])
+            combined_mask = combine_masks(mask_potentials)
+            masks.append(combined_mask)
+
+            '''
+            #for debugging
+            scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/combined_mask.jpg', combined_mask*255)
+            np.save('./russ_dunk/mask_vault/mask_vault'+str(idx)+'.npy', combined_mask)
+            scipy.misc.imsave('./russ_dunk/mask_vault/mask_vault'+str(idx)+'.jpg', combined_mask*255)
+            '''
+
 
     #save if asked
     if save:
         for idx,mask in enumerate(masks):
-            np.save(save_path + '/mask' + idx + '.npy', mask)
+            np.save(folder + '/mask' + str(idx) + '.npy', mask)
+        to_gif = list(np.asarray(masks)*255)
+        imageio.mimsave(folder + '/masks.gif', to_gif)
 
     return masks

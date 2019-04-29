@@ -116,6 +116,7 @@ def genSIFTMatchPairs(img1, img2):
 
 
 # TODO: USE PREVIOUS 10 to stabilize better
+#Roop
 def generate_homographies(gif, debug=2, folder='russ_dunk'):
     stabilized_gif = [gif[0]]
     Hs = []
@@ -125,7 +126,8 @@ def generate_homographies(gif, debug=2, folder='russ_dunk'):
         base = stabilized_gif[-1]
         img = gif[i]
         pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
-        inliers_idx, H = RANSAC(pts1, pts2, 500, 20, 4) # 2000, 10, 10
+        H, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+        #inliers_idx, H = RANSAC(pts1, pts2, 500, 20, 4) # 2000, 10, 10
         Hs.append(H)
         stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
 
@@ -133,6 +135,29 @@ def generate_homographies(gif, debug=2, folder='russ_dunk'):
         np.save(folder + '/Hs.npy', Hs)
 
     return Hs, stabilized_gif
+
+#Max
+def generate_hs(gif, debug=2, folder='russ_dunk'):
+    if debug == 2:
+        stabilized_gif = [gif[0]]
+    prev_frame = gif[0]
+    Hs = []
+    for i in tqdm(range(1, len(gif))):
+        if debug == 2 and i % 20 == 0:
+            imageio.mimsave(folder + '/stabilized.gif', stabilized_gif)
+        base = prev_frame
+        img = gif[i]
+        pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
+        H, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+        Hs.append(H)
+        prev_frame = cv2.warpPerspective(img, H, img.shape[:2][::-1])
+        if debug == 2:
+            stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
+
+    if debug == 2:
+        np.save(folder + '/Hs.npy', Hs)
+
+    return Hs
 
 
 if __name__ == '__main__':

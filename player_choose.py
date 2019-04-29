@@ -5,7 +5,7 @@ import cv2
 
 def click(event, x, y, flags, param):
     # grab references to the global variables
-    global refPt, cropping
+    global refPt
 
     # if the left mouse button was clicked, record the
     # (x, y) coordinates
@@ -14,7 +14,7 @@ def click(event, x, y, flags, param):
 
 def click_window(image):
     # initialize the list of reference points
-    refPt = ()
+    #refPt = ()
 
     cv2.namedWindow("image")
     cv2.setMouseCallback("image", click)
@@ -22,7 +22,7 @@ def click_window(image):
     # keep looping until the 'q' key is pressed
     while True:
         # display the image and wait for a keypress
-        cv2.imshow("image", image)
+        cv2.imshow("image", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
