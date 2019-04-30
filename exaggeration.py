@@ -274,32 +274,3 @@ if __name__ == '__main__':
 
     # get exaggerated polynomial
     x,y,idxs_to_adjust = exaggerated_poly(gauss20)
-
-
-
-
-
-
-    # def shaped_mask(m):
-    #     r = np.zeros((m.shape[0], m.shape[1], 3), dtype=np.uint8)
-    #     for i in range(3):
-    #         r[:, :, i] = m.copy()
-    #     return np.array(m, dtype=np.uint8)
-    #
-    #
-    # def intersection_count(m1, m2):
-    #     return np.sum(np.logical_and(m1, m2))
-
-
-    # nice_masks0 = np.load('../r-cnn_masks/nice_mask0.npy')
-    # previous_player_mask_idx = np.argmax([np.sum(i) for i in nice_masks0])
-    #
-    # images = []
-    # image = skimage.io.imread('../russ_dunk_images/russ_dunk_frame0.png')
-    # for i in tqdm(range(1, 260)):
-    #     images.append(cv2.bitwise_and(image, image, mask=shaped_mask(nice_masks0[previous_player_mask_idx])))
-    #     image = skimage.io.imread('../russ_dunk_images/russ_dunk_frame' + str(i) + '.png')
-    #     nice_masks1 = np.load('../r-cnn_masks/nice_mask' + str(i) + '.npy')
-    #     previous_player_mask_idx = np.argmax(
-    #         [intersection_count(nice_masks0[previous_player_mask_idx], i) for i in nice_masks1])
-    #     nice_masks0 = nice_masks1

@@ -19,22 +19,6 @@ from PIL import Image
 
 
 
-def load_masks(filepath, len_gif, save_pngs=True, save_gif=True):
-    masks = []
-    while len(masks) < len_gif:
-        for idx, file in enumerate(list(glob.glob(filepath + '/*mask*.npy'))):
-            if 'mask' + str(len(masks)) + '.npy' in file:
-                mask = np.load(file)
-                masks.append(mask)
-            if save_pngs:
-                scipy.misc.imsave('russ_dunk/' + str(idx) + '.jpg', np.load(file)*255)
-    if save_gif:
-        to_gif = np.asarray(masks) * 255
-        imageio.mimsave('russ_dunk/masks.gif', to_gif)
-    return masks
-
-
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-g", "--gif", required=True, help="Path to gif")
@@ -44,7 +28,7 @@ if __name__ == '__main__':
     ap.add_argument("-l", "--load", required=False, help="Load masks and homographies")
     args = vars(ap.parse_args())
 
-    save_folder = args['savemodel']
+    save_folder = args['savefolder']
     path_to_model_folder = args["model"]
     path_to_gif = args["gif"]
     exag = int(args['exaggeration'])
@@ -53,7 +37,7 @@ if __name__ == '__main__':
     else:
         load = False
 
-    if load:
+    if not load:
         #Load Mask R-CNN Model
 
         print("loading Mask R-CNN model...")
@@ -95,7 +79,7 @@ if __name__ == '__main__':
     print("loading dunk gif...")
     gif = imageio.mimread(path_to_gif, memtest=False)
 
-    if load:
+    if not load:
         print("click on player and press q to exit")
         # Open window and ask for xy coordinate contained in player
         xy = player_choose.click_window(gif[0])
@@ -103,13 +87,14 @@ if __name__ == '__main__':
 
     if load:
         print("loading masks...")
-        masks = load_masks(save_folder, len(gif), save_pngs=False, save_gif=False)
+        masks = np.load(save_folder + '/masks.npy')
     else:
         # Get masks
         print("creating masks...")
         masks = masking.get_masks(gif, xy, model, save=True, folder=save_folder)
 
-    assert(masks[0].shape == gif[0].shape)
+    print(masks[0].shape, gif[0][:,:,0].shape)
+    assert(masks[0].shape == gif[0][:,:,0].shape)
 
 
     if load:
