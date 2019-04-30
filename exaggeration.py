@@ -237,23 +237,26 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
             # remove player from image
             background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
+
+            #TODO: FOR ROOP:
+            # add median to background
+
+
             # move mask up based on y adj
             frame_3_deep = player[:, :, :3]
             mask_pts = zip(*np.nonzero(frame_3_deep))
             mask_pts = list(mask_pts)
             mask_pts = np.asarray(mask_pts)
-
-            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
-
             # transform points based on inverse homography
+            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
             transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i - 1]))
             transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
             transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
+            # calculate y_adj based on transformed parabola
             if i == jump_start_frame_num:
                 y_start = int(transformed_centroid[1])
-
             y_adj = abs(y_start - int(transformed_centroid[1]))
-
+            # move mask up
             adj_player = move_mask(mask_pts, background, player, y_adj)
             # overlay and append to gif
             overlayed.append(adj_player)
