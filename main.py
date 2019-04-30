@@ -17,13 +17,17 @@ from PIL import Image
 
 
 
-def load_masks(filepath, save_pngs=True, save_gif=True):
+
+
+def load_masks(filepath, len_gif, save_pngs=True, save_gif=True):
     masks = []
-    for idx,file in enumerate(list(glob.glob(filepath + '/*mask*.npy'))):
-        mask = np.load(file)
-        masks.append(mask)
-        if save_pngs:
-            scipy.misc.imsave('russ_dunk/' + str(idx) + '.jpg', np.load(file)*255)
+    while len(masks) < len_gif:
+        for idx, file in enumerate(list(glob.glob(filepath + '/*mask*.npy'))):
+            if 'mask' + str(len(masks)) + '.npy' in file:
+                mask = np.load(file)
+                masks.append(mask)
+            if save_pngs:
+                scipy.misc.imsave('russ_dunk/' + str(idx) + '.jpg', np.load(file)*255)
     if save_gif:
         to_gif = np.asarray(masks) * 255
         imageio.mimsave('russ_dunk/masks.gif', to_gif)
@@ -34,99 +38,99 @@ def load_masks(filepath, save_pngs=True, save_gif=True):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-g", "--gif", required=True, help="Path to gif")
+    ap.add_argument("-f", "--savefolder", required=True, help="Path to save gif in")
     ap.add_argument("-m", "--model", required=True, help="Path to Mask R-CNN folder")
     ap.add_argument("-e", "--exaggeration", required=True, help="Exaggeration to apply")
+    ap.add_argument("-l", "--load", required=False, help="Load masks and homographies")
     args = vars(ap.parse_args())
 
+    save_folder = args['savemodel']
     path_to_model_folder = args["model"]
     path_to_gif = args["gif"]
     exag = int(args['exaggeration'])
+    if args['load']:
+        load = True
+    else:
+        load = False
 
-    '''
-    #Load Mask R-CNN Model
+    if load:
+        #Load Mask R-CNN Model
 
-    print("loading Mask R-CNN model...")
+        print("loading Mask R-CNN model...")
 
-    ROOT_DIR = os.path.abspath(path_to_model_folder)
-    sys.path.append(ROOT_DIR)  # To find local version of the library
-    import mrcnn.model as modellib
-    sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
-    import coco
-    MODEL_DIR = os.path.join(ROOT_DIR, "logs")
-    COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-    if not os.path.exists(COCO_MODEL_PATH):
-        utils.download_trained_weights(COCO_MODEL_PATH)
-    class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
-                   'bus', 'train', 'truck', 'boat', 'traffic light',
-                   'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
-                   'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
-                   'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
-                   'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-                   'kite', 'baseball bat', 'baseball glove', 'skateboard',
-                   'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-                   'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-                   'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-                   'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
-                   'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-                   'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
-                   'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
-                   'teddy bear', 'hair drier', 'toothbrush']
-    class InferenceConfig(coco.CocoConfig):
-        # Set batch size to 1 since we'll be running inference on
-        # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
-        GPU_COUNT = 1
-        IMAGES_PER_GPU = 1
-    config = InferenceConfig()
-    model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
-    model.load_weights(COCO_MODEL_PATH, by_name=True)
-    '''
+        ROOT_DIR = os.path.abspath(path_to_model_folder)
+        sys.path.append(ROOT_DIR)  # To find local version of the library
+        import mrcnn.model as modellib
+        sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
+        import coco
+        MODEL_DIR = os.path.join(ROOT_DIR, "logs")
+        COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
+        if not os.path.exists(COCO_MODEL_PATH):
+            utils.download_trained_weights(COCO_MODEL_PATH)
+        class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
+                       'bus', 'train', 'truck', 'boat', 'traffic light',
+                       'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
+                       'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
+                       'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+                       'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+                       'kite', 'baseball bat', 'baseball glove', 'skateboard',
+                       'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+                       'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+                       'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+                       'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+                       'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+                       'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
+                       'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
+                       'teddy bear', 'hair drier', 'toothbrush']
+        class InferenceConfig(coco.CocoConfig):
+            # Set batch size to 1 since we'll be running inference on
+            # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
+            GPU_COUNT = 1
+            IMAGES_PER_GPU = 1
+        config = InferenceConfig()
+        model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
+        model.load_weights(COCO_MODEL_PATH, by_name=True)
+
     # Load gif
     print("loading dunk gif...")
     gif = imageio.mimread(path_to_gif, memtest=False)
 
-    # Open window and ask for xy coordinate contained in player
-    #xy = player_choose.click_window(gif[0])
+    if load:
+        print("click on player and press q to exit")
+        # Open window and ask for xy coordinate contained in player
+        xy = player_choose.click_window(gif[0])
 
 
-    # Get masks
-    print("creating masks...")
-    #masks = masking.get_masks(gif, xy, model, save=True, folder='./blake_dunk')
-    masks = load_masks('./blake_dunk', save_pngs=False,save_gif=False)
+    if load:
+        print("loading masks...")
+        masks = load_masks(save_folder, len(gif), save_pngs=False, save_gif=False)
+    else:
+        # Get masks
+        print("creating masks...")
+        masks = masking.get_masks(gif, xy, model, save=True, folder=save_folder)
+
+    assert(masks[0].shape == gif[0].shape)
 
 
-    # Get homographies
-    print("calculating homographies...")
-    #Hs = stabilize.generate_hs(gif, folder='./blake_dunk')
-    Hs = np.load('blake_dunk/Hs.npy')
+    if load:
+        print("loading homographies...")
+        Hs = np.load(save_folder + '/Hs.npy')
+    else:
+        # Get homographies
+        print("calculating and saving homographies...")
+        Hs, stabilized_gif = stabilize.generate_hs(gif, folder='./russ_dunk')
+
+    # Generate stabilized gif of masks
+    stabilized_masks = stabilize.generate_stabilized_masks(masks, Hs)
 
     # Get poly function for exaggeration
     print("calculating exaggeration...")
 
     gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
-    xs, gauss20 = exaggeration.get_smoothed_trajectory(masks, Hs, gauss_kernel)
+    xs, gauss = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
 
-    '''
-    import matplotlib
 
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    x_plot = np.linspace(0, len(gif)-1, num=len(gif)-1)
-    ax.plot(x_plot,gauss20)
-    fig.savefig('gauss20.png')
-    '''
-
-    _, ys, idxs_to_adjust = exaggeration.exaggerated_poly(gauss20, exaggeration=exag)
-
-    '''
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    x_plot = np.linspace(0, len(gif)-1, num=len(gif)-1)
-    ax.plot(x_plot, ys)
-    fig.savefig('adj_poly.png')
-    '''
+    _, ys, idxs_to_adjust = exaggeration.exaggerated_poly(gauss, exaggeration=exag)
 
     start_jump_frame_num = idxs_to_adjust[0]
     end_jump_frame_num = idxs_to_adjust[-1]
@@ -135,7 +139,7 @@ if __name__ == '__main__':
     # Exaggerate movement
     print("exaggerating...")
     adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump_frame_num, end_jump_frame_num)
-    imageio.mimsave('./blake_dunk/final.gif', adj_gif)
+    imageio.mimsave(save_folder+'/final.gif', adj_gif)
 
 
 
