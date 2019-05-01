@@ -250,8 +250,31 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
     return overlayed
 
 
+def generate_background_image(stabilized_gif):
+    a = np.array(stabilized_gif)[:, :, :, :3] # 80x300x640x3
+
+    c = [[[] for i in range(a.shape[2])] for j in range(a.shape[1])]
+    for i, frame in tqdm(enumerate(a), total=len(a)):
+        for row in range(len(frame)):
+            for col in range(len(frame[row])):
+                rgb = np.sum(frame[row][col])
+                if rgb != 0:
+                    c[row][col] = sorted(c[row][col] + [(rgb, i)], key=lambda x: x[0])
+
+    background_image = np.empty_like(stabilized_gif[0])
+    for i in range(len(c)):
+        for j in range(len(c[i])):
+            background_image[i][j] = stabilized_gif[c[i][j][len(c[i][j])//2][1]][i][j]
+
+    plt.imshow(background_image)
+    plt.show()
+
+    np.save('background.npy', background_image)
+    return background_image
+
 if __name__ == '__main__':
     stabilized_gif = imageio.mimread('russ_dunk/stabilized.gif', memtest=False)
+    background_image = generate_background_image(stabilized_gif)
 
     # get smoothed trajectory
     gauss20 = center_of_mass(stabilized_gif, debug=0, folder='russ_dunk')
