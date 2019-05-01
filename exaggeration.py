@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 from copy import deepcopy as copy
 import scipy.ndimage
 import numpy.polynomial.polynomial as poly
+from statistics import median as med
+
 
 #Max
 def get_centroid_of_mask_pts(points):
@@ -41,10 +43,9 @@ def get_smoothed_trajectory(masks, Hs, gauss_num):
         centroids.append(get_centroid_of_mask_pts(transformed_mask_pts))
     centroids = np.asarray(centroids)
 
-    '''
+
     import matplotlib
 
-    matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
     fig = plt.figure()
@@ -52,43 +53,51 @@ def get_smoothed_trajectory(masks, Hs, gauss_num):
     x_plot = np.linspace(0, len(masks), num=len(masks))
     ax.plot(x_plot,centroids[:,1])
     fig.savefig('centroids.png')
-    '''
+
 
 
     gauss20 = scipy.ndimage.filters.gaussian_filter1d(centroids[:,1], gauss_num)
     return centroids[:,0], gauss20
 
 
-#Roop
-def center_of_mass(gif, debug=0, folder='./russ_dunk'):
-    c = []
-    for i in gif:
-        # convert image to grayscale image
-        img = copy(i)
-        gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def get_centroid(frame):
+#Input: grayscale image (0-255 and 1 channel)
+# Output: centroid of image
+    ret, thresh = cv2.threshold(frame, 1, 255, 0)
 
-        # convert the grayscale image to binary image
-        ret, thresh = cv2.threshold(gray_image, 1, 255, 0)
+    # calculate moments of binary image
+    M = cv2.moments(thresh)
 
-        # calculate moments of binary image
-        M = cv2.moments(thresh)
-
+    try:
         # calculate x,y coordinate of center
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
+        # cX, cY = scipy.ndimage.measurements.center_of_mass(i)
+        return (cX, cY)
+    except:
+        return False
 
-        c.append((cX, cY))
+
+#Roop
+def center_of_mass(gif, gauss, debug=0, folder='./russ_dunk'):
+    c = []
+    for i in gif:
+        # convert image to grayscale image
+        if get_centroid(i):
+            c.append(get_centroid(i))
+        else:
+            c.append(c[-1])
+
     c = np.array(c)
 
     gauss_0 = c[:, 1]
-    gauss20 = scipy.ndimage.filters.gaussian_filter1d(gauss_0, 20)
+    gauss20 = scipy.ndimage.filters.gaussian_filter1d(gauss_0, gauss)
 
     if debug:
         new_gif = []
         gauss_5 = scipy.ndimage.filters.gaussian_filter1d(gauss_0, 5)
         gauss10 = scipy.ndimage.filters.gaussian_filter1d(gauss_0, 10)
         gauss15 = scipy.ndimage.filters.gaussian_filter1d(gauss_0, 15)
-        from statistics import median as med
         a = gauss_0
         median = [int(med(a[0:2]))]
         for i in range(1, len(a) - 1):
@@ -96,18 +105,18 @@ def center_of_mass(gif, debug=0, folder='./russ_dunk'):
         median.append(int(med(a[len(a) - 2:len(a)])))
         for i in range(len(gif)):
             frame = np.copy(gif[i])
-            for j in range(i + 1):
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, gauss20[j] - 100), 5, (0, 0, 255), -1)
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, gauss15[j]), 5, (0, 255, 255), -1)
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, gauss10[j] + 100), 5, (0, 255, 0), -1)
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, gauss_5[j] + 200), 5, (255, 255, 0), -1)
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, gauss_0[j] + 400), 5, (255, 0, 0), -1)
-                cv2.circle(frame, (j + 1300 + (1300 // len(gif)) * j, median[j] + 300), 5, (255, 0, 255), -1)
+            for j in range(i):
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, gauss20[j] - 50), 5, (0, 0, 255), -1)
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, gauss15[j]), 5, (0, 255, 255), -1)
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, gauss10[j] + 50), 5, (0, 255, 0), -1)
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, gauss_5[j] + 100), 5, (255, 255, 0), -1)
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, gauss_0[j] + 150), 5, (255, 0, 0), -1)
+                cv2.circle(frame, (j + (1000 // len(gif)) * j, median[j] + 200), 5, (255, 0, 255), -1)
             new_gif.append(frame)
 
         imageio.mimsave(folder + '/centroid_lines.gif', new_gif)
 
-    return gauss20
+    return c[:, 0], gauss20
 
 
 def poly_reg(x,y):
@@ -209,8 +218,8 @@ def shaped_mask(m):
 def move_mask(mask_pts, background, player, y_adj):
   new_frame = np.array(background)
   for pt in mask_pts:
-    if pt[0] - y_adj >= 0:
-      new_frame[pt[0] - y_adj,pt[1]] = player[pt[0],pt[1]]
+      if pt[0] - y_adj >= 0:
+          new_frame[pt[0] - y_adj,pt[1]] = player[pt[0],pt[1]]
   return new_frame
 
 
@@ -220,28 +229,35 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
     adj_centroids = np.zeros((len(xs), 2))
     adj_centroids[:, 0], adj_centroids[:, 1] = xs, ys
 
+    y_start = 0
 
     for i in range(len(original_gif)):
-        if jump_start_frame_num < i < jump_end_frame_num:
+        if jump_start_frame_num <= i <= jump_end_frame_num:
             # remove background from image
             player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
             # remove player from image
             background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
+
+            #TODO: FOR ROOP:
+            # add median to background
+
+
             # move mask up based on y adj
             frame_3_deep = player[:, :, :3]
             mask_pts = zip(*np.nonzero(frame_3_deep))
             mask_pts = list(mask_pts)
             mask_pts = np.asarray(mask_pts)
-
-
-            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
             # transform points based on inverse homography
+            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
             transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i - 1]))
             transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
             transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
-
-            y_adj = abs(transformed_centroid[1] - get_centroid_of_mask_pts(mask_pts)[1])
-            adj_player = move_mask(mask_pts, background, player, int(y_adj))
+            # calculate y_adj based on transformed parabola
+            if i == jump_start_frame_num:
+                y_start = int(transformed_centroid[1])
+            y_adj = abs(y_start - int(transformed_centroid[1]))
+            # move mask up
+            adj_player = move_mask(mask_pts, background, player, y_adj)
             # overlay and append to gif
             overlayed.append(adj_player)
         else:
@@ -281,32 +297,3 @@ if __name__ == '__main__':
 
     # get exaggerated polynomial
     x,y,idxs_to_adjust = exaggerated_poly(gauss20)
-
-
-
-
-
-
-    # def shaped_mask(m):
-    #     r = np.zeros((m.shape[0], m.shape[1], 3), dtype=np.uint8)
-    #     for i in range(3):
-    #         r[:, :, i] = m.copy()
-    #     return np.array(m, dtype=np.uint8)
-    #
-    #
-    # def intersection_count(m1, m2):
-    #     return np.sum(np.logical_and(m1, m2))
-
-
-    # nice_masks0 = np.load('../r-cnn_masks/nice_mask0.npy')
-    # previous_player_mask_idx = np.argmax([np.sum(i) for i in nice_masks0])
-    #
-    # images = []
-    # image = skimage.io.imread('../russ_dunk_images/russ_dunk_frame0.png')
-    # for i in tqdm(range(1, 260)):
-    #     images.append(cv2.bitwise_and(image, image, mask=shaped_mask(nice_masks0[previous_player_mask_idx])))
-    #     image = skimage.io.imread('../russ_dunk_images/russ_dunk_frame' + str(i) + '.png')
-    #     nice_masks1 = np.load('../r-cnn_masks/nice_mask' + str(i) + '.npy')
-    #     previous_player_mask_idx = np.argmax(
-    #         [intersection_count(nice_masks0[previous_player_mask_idx], i) for i in nice_masks1])
-    #     nice_masks0 = nice_masks1

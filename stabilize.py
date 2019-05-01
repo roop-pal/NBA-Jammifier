@@ -136,10 +136,21 @@ def generate_homographies(gif, debug=2, folder='russ_dunk'):
 
     return Hs, stabilized_gif
 
+def generate_stabilized_masks(masks, Hs):
+    stabilized_masks = []
+    prev_frame = masks[0]
+    for i, mask in enumerate(masks):
+        if i == 0:
+            stabilized_masks.append(np.array(mask * 255, dtype=np.uint8))
+        else:
+            stabilized_masks.append(
+                cv2.warpPerspective(np.array(mask * 255, dtype=np.uint8), Hs[i - 1], prev_frame.shape[:2][::-1]))
+            prev_frame = stabilized_masks[-1]
+    return stabilized_masks
+
 #Max
 def generate_hs(gif, debug=2, folder='russ_dunk'):
-    if debug == 2:
-        stabilized_gif = [gif[0]]
+    stabilized_gif = [gif[0]]
     prev_frame = gif[0]
     Hs = []
     for i in tqdm(range(1, len(gif))):
@@ -151,13 +162,12 @@ def generate_hs(gif, debug=2, folder='russ_dunk'):
         H, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
         Hs.append(H)
         prev_frame = cv2.warpPerspective(img, H, img.shape[:2][::-1])
-        if debug == 2:
-            stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
+        stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
 
     if debug == 2:
         np.save(folder + '/Hs.npy', Hs)
 
-    return Hs
+    return Hs, stabilized_gif
 
 
 if __name__ == '__main__':
