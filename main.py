@@ -93,13 +93,13 @@ if __name__ == '__main__':
         print("creating masks...")
         masks = masking.get_masks(gif, xy, model, save=True, folder=save_folder)
 
-    print(masks[0].shape, gif[0][:,:,0].shape)
     assert(masks[0].shape == gif[0][:,:,0].shape)
 
 
     if load:
         print("loading homographies...")
         Hs = np.load(save_folder + '/Hs.npy')
+        stabilized_gif = imageio.mimread(save_folder+'/stabilized.gif', memtest=False)
     else:
         # Get homographies
         print("calculating and saving homographies...")
@@ -112,13 +112,30 @@ if __name__ == '__main__':
     print("calculating exaggeration...")
 
     gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
-    xs, gauss = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
+    xs, gauss, cs = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
+
+    _, ys, idxs_to_adjust, first_poly = exaggeration.exaggerated_poly(gauss, exaggeration=exag)
 
 
-    _, ys, idxs_to_adjust = exaggeration.exaggerated_poly(gauss, exaggeration=exag)
+
+
+
+    import matplotlib.pyplot as plt
+
+    x_plot = np.linspace(0,len(gauss),num=len(gauss))
+
+    plt.scatter(x_plot, cs, color='green')
+    plt.scatter(x_plot, gauss,color='red')
+    plt.scatter(x_plot, ys,color='blue')
+    plt.scatter(x_plot, first_poly, color='orange')
+    plt.savefig(save_folder+'/trajectoriesandrew.png')
 
     start_jump_frame_num = idxs_to_adjust[0]
     end_jump_frame_num = idxs_to_adjust[-1]
+
+
+
+
 
 
     # Exaggerate movement

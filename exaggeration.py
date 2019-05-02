@@ -63,6 +63,7 @@ def get_smoothed_trajectory(masks, Hs, gauss_num):
 def get_centroid(frame):
 #Input: grayscale image (0-255 and 1 channel)
 # Output: centroid of image
+
     ret, thresh = cv2.threshold(frame, 1, 255, 0)
 
     # calculate moments of binary image
@@ -116,7 +117,7 @@ def center_of_mass(gif, gauss, debug=0, folder='./russ_dunk'):
 
         imageio.mimsave(folder + '/centroid_lines.gif', new_gif)
 
-    return c[:, 0], gauss20
+    return c[:, 0], gauss20, c[:,1]
 
 
 def poly_reg(x,y):
@@ -198,7 +199,7 @@ def exaggerated_poly(gauss20, exaggeration=50):
 
     # final polynomial
     y_poly_final = new_poly(x)
-    return x, y_poly_final, idxs_to_adjust
+    return x, y_poly_final, idxs_to_adjust, y_poly
 
 
 def overlay_pic(background, overlay):
@@ -223,7 +224,7 @@ def move_mask(mask_pts, background, player, y_adj):
   return new_frame
 
 
-def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif):
+def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stabilized_gif):
     overlayed = []
     # reformat xs and ys
     adj_centroids = np.zeros((len(xs), 2))
@@ -233,9 +234,9 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
 
     bp = {}
 
-    # print('loading background image')
-    # background_npy = generate_background_image(stabilized_gif)
-    background_npy = np.load('background.npy')
+    print('loading background image...')
+    background_npy = generate_background_image(stabilized_gif)
+    #background_npy = np.load('background.npy')
     for i in tqdm(range(len(original_gif))):
         if jump_start_frame_num <= i <= jump_end_frame_num:
             # remove background from image
