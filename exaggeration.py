@@ -223,7 +223,7 @@ def move_mask(mask_pts, background, player, y_adj):
   return new_frame
 
 
-def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num):
+def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif):
     overlayed = []
     # reformat xs and ys
     adj_centroids = np.zeros((len(xs), 2))
@@ -231,16 +231,17 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
 
     y_start = 0
 
-    for i in range(len(original_gif)):
+    bp = {}
+
+    # print('loading background image')
+    # background_npy = generate_background_image(stabilized_gif)
+    background_npy = np.load('background.npy')
+    for i in tqdm(range(len(original_gif))):
         if jump_start_frame_num <= i <= jump_end_frame_num:
             # remove background from image
             player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
             # remove player from image
             background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
-
-            #TODO: FOR ROOP:
-            # add median to background
-
 
             # move mask up based on y adj
             frame_3_deep = player[:, :, :3]
@@ -258,8 +259,25 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             y_adj = abs(y_start - int(transformed_centroid[1]))
             # move mask up
             adj_player = move_mask(mask_pts, background, player, y_adj)
+
+            # FILL BLACK PARTS
+
+            filled_image = np.empty_like(adj_player)
+            for y in range(len(adj_player)):
+                for x in range(len(adj_player[y])):
+                    if sum(adj_player[y][x][:3]):
+                        filled_image[y][x] = adj_player[y][x]
+                    else:
+                        to_project = np.asarray([x, y], dtype=np.float32).reshape(-1, 1, 2)
+                        wx, wy = np.array(cv2.perspectiveTransform(to_project, Hs[i - 1])[0][0], dtype=np.uint8)
+                        if wy < len(background_npy) and wx < len(background_npy[0]):
+                            filled_image[y][x] = background_npy[wy][wx] # conditional for x ~= 640 range
+                        # if (y, x) not in bp:
+                        #     bp[(y, x)] = background_pixel(stab_gif, y, x)
+                        # filled_image[y][x] = bp[(y, x)]
+
             # overlay and append to gif
-            overlayed.append(adj_player)
+            overlayed.append(filled_image)
         else:
             overlayed.append(original_gif[i])
 
@@ -285,12 +303,36 @@ def generate_background_image(stabilized_gif):
     plt.imshow(background_image)
     plt.show()
 
-    np.save('background.npy', background_image)
+    # np.save('background.npy', background_image)
     return background_image
+
+
+def background_pixel(sg, x, y):
+    a = np.array(sg)[:, x, y, :3]
+    median_values = []
+    for i, v in enumerate(a):
+        rgb = np.sum(v)
+        if rgb != 0:
+            median_values.append((rgb, i))
+    s = sorted(median_values, key=lambda x: x[0])
+    idx = s[len(s)//2][1]
+    return sg[idx][x][y]
+
+
+# def XNX_background_pixel(stab_gif, x,y):
+#     #2:17
+#     x,y = 150, 150
+#     a = np.array(stab_gif, dtype=np.float32)[:, x, y, :3]  # 80x300x640x3
+#     a = np.apply_along_axis(np.sum, 1, a)
+#     a[a == 0] = np.nan
+#     median = np.nanmedian(a)
+#     idx = np.nanargmin(np.abs(a - median))
+#     # this is the corresponding "error"
+#     return stab_gif[idx][x][y]
 
 if __name__ == '__main__':
     stabilized_gif = imageio.mimread('russ_dunk/stabilized.gif', memtest=False)
-    background_image = generate_background_image(stabilized_gif)
+    # background_image = generate_background_image(stabilized_gif)
 
     # get smoothed trajectory
     gauss20 = center_of_mass(stabilized_gif, debug=0, folder='russ_dunk')

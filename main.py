@@ -103,7 +103,7 @@ if __name__ == '__main__':
     else:
         # Get homographies
         print("calculating and saving homographies...")
-        Hs, stabilized_gif = stabilize.generate_hs(gif, folder='./russ_dunk')
+        Hs, stabilized_gif = stabilize.generate_hs(gif, folder='./' + save_folder)
 
     # Generate stabilized gif of masks
     stabilized_masks = stabilize.generate_stabilized_masks(masks, Hs)
@@ -123,7 +123,8 @@ if __name__ == '__main__':
 
     # Exaggerate movement
     print("exaggerating...")
-    adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump_frame_num, end_jump_frame_num)
+    stabilized_gif = imageio.mimread(save_folder + '/stabilized.gif', memtest=False)
+    adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump_frame_num, end_jump_frame_num, stabilized_gif)
     imageio.mimsave(save_folder+'/final.gif', adj_gif)
 
 
