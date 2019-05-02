@@ -224,7 +224,7 @@ def move_mask(mask_pts, background, player, y_adj):
   return new_frame
 
 
-def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stabilized_gif):
+def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif):
     overlayed = []
     # reformat xs and ys
     adj_centroids = np.zeros((len(xs), 2))
@@ -234,9 +234,11 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
 
     bp = {}
 
-    print('loading background image...')
-    background_npy = generate_background_image(stabilized_gif)
-    #background_npy = np.load('background.npy')
+    a = np.array(stab_gif)[:, :, :, :3]
+    print('generating background image...')
+    background_npy = generate_background_image(stab_gif)
+    print('inpainting background...')
+    # background_npy = np.load('background.npy')
     for i in tqdm(range(len(original_gif))):
         if jump_start_frame_num <= i <= jump_end_frame_num:
             # remove background from image
@@ -262,20 +264,22 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             adj_player = move_mask(mask_pts, background, player, y_adj)
 
             # FILL BLACK PARTS
-
             filled_image = np.empty_like(adj_player)
+            asdf = cv2.warpPerspective(background_npy, np.linalg.inv(Hs[i - 1]), background_npy.shape[:2][::-1])
             for y in range(len(adj_player)):
                 for x in range(len(adj_player[y])):
                     if sum(adj_player[y][x][:3]):
                         filled_image[y][x] = adj_player[y][x]
                     else:
                         to_project = np.asarray([x, y], dtype=np.float32).reshape(-1, 1, 2)
-                        wx, wy = np.array(cv2.perspectiveTransform(to_project, Hs[i - 1])[0][0], dtype=np.uint8)
-                        if wy < len(background_npy) and wx < len(background_npy[0]):
-                            filled_image[y][x] = background_npy[wy][wx] # conditional for x ~= 640 range
-                        # if (y, x) not in bp:
-                        #     bp[(y, x)] = background_pixel(stab_gif, y, x)
-                        # filled_image[y][x] = bp[(y, x)]
+
+                        if y < len(asdf) and x < len(asdf[0]):
+                            filled_image[y][x] = asdf[y][x]
+                        #
+                        # wx, wy = np.array(cv2.perspectiveTransform(to_project, np.linalg.inv(Hs[i - 1]))[0][0], dtype=np.uint8)
+                        # if (wy, wx) not in bp:
+                        #     bp[(wy, wx)] = stab_gif[background_pixel(a[:,wy,wx], wy, wx)][wy][wx]
+                        # filled_image[y][x] = bp[(wy, wx)]
 
             # overlay and append to gif
             overlayed.append(filled_image)
@@ -301,15 +305,14 @@ def generate_background_image(stabilized_gif):
         for j in range(len(c[i])):
             background_image[i][j] = stabilized_gif[c[i][j][len(c[i][j])//2][1]][i][j]
 
-    plt.imshow(background_image)
-    plt.show()
+    # plt.imshow(background_image)
+    # plt.show()
 
     # np.save('background.npy', background_image)
     return background_image
 
 
-def background_pixel(sg, x, y):
-    a = np.array(sg)[:, x, y, :3]
+def background_pixel(a, x, y):
     median_values = []
     for i, v in enumerate(a):
         rgb = np.sum(v)
@@ -317,22 +320,11 @@ def background_pixel(sg, x, y):
             median_values.append((rgb, i))
     s = sorted(median_values, key=lambda x: x[0])
     idx = s[len(s)//2][1]
-    return sg[idx][x][y]
-
-
-# def XNX_background_pixel(stab_gif, x,y):
-#     #2:17
-#     x,y = 150, 150
-#     a = np.array(stab_gif, dtype=np.float32)[:, x, y, :3]  # 80x300x640x3
-#     a = np.apply_along_axis(np.sum, 1, a)
-#     a[a == 0] = np.nan
-#     median = np.nanmedian(a)
-#     idx = np.nanargmin(np.abs(a - median))
-#     # this is the corresponding "error"
-#     return stab_gif[idx][x][y]
+    return idx
 
 if __name__ == '__main__':
-    stabilized_gif = imageio.mimread('russ_dunk/stabilized.gif', memtest=False)
+    stabilized_gif = imageio.mimread('russ_dunk88/stabilized.gif', memtest=False)
+
     # background_image = generate_background_image(stabilized_gif)
 
     # get smoothed trajectory

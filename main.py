@@ -141,6 +141,7 @@ if __name__ == '__main__':
     # Exaggerate movement
     print("exaggerating...")
     stabilized_gif = imageio.mimread(save_folder + '/stabilized.gif', memtest=False)
+
     adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump_frame_num, end_jump_frame_num, stabilized_gif)
     imageio.mimsave(save_folder+'/final.gif', adj_gif)
 
