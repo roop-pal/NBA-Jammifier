@@ -179,7 +179,7 @@ def exaggerated_poly(gauss20, exaggeration=50):
     y = np.asarray(gauss20)
 
     # poly = polynomial fit by RANSAC
-    _, poly = RANSAC_poly(x, y, 1000, 3)
+    _, poly = RANSAC_poly(x, y, 1000, 10)
     # y points for polynomial
     y_poly = poly(x)
 
@@ -238,7 +238,6 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
     print('generating background image...')
     background_npy = generate_background_image(stab_gif)
     print('inpainting background...')
-    # background_npy = np.load('background.npy')
     for i in tqdm(range(len(original_gif))):
         if jump_start_frame_num <= i <= jump_end_frame_num:
             # remove background from image
@@ -263,6 +262,7 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             # move mask up
             adj_player = move_mask(mask_pts, background, player, y_adj)
 
+
             # FILL BLACK PARTS
             filled_image = np.empty_like(adj_player)
             asdf = cv2.warpPerspective(background_npy, np.linalg.inv(Hs[i - 1]), background_npy.shape[:2][::-1])
@@ -280,9 +280,10 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
                         # if (wy, wx) not in bp:
                         #     bp[(wy, wx)] = stab_gif[background_pixel(a[:,wy,wx], wy, wx)][wy][wx]
                         # filled_image[y][x] = bp[(wy, wx)]
-
             # overlay and append to gif
             overlayed.append(filled_image)
+
+            overlayed.append(adj_player)
         else:
             overlayed.append(original_gif[i])
 
@@ -311,6 +312,26 @@ def generate_background_image(stabilized_gif):
     # np.save('background.npy', background_image)
     return background_image
 
+def generate_background_image_max(stabilized_gif):
+    a = np.array(stabilized_gif)[:, :, :, :3] # 80x300x640x3
+
+    c = [[[] for i in range(a.shape[2])] for j in range(a.shape[1])]
+    for i, frame in tqdm(enumerate(a), total=len(a)):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        for row in range(len(gray)):
+            for col in range(len(gray[row])):
+                rgb = gray[row][col]
+                if rgb != 0:
+                    c[row][col] = sorted(c[row][col] + [(rgb, i)], key=lambda x: x[0])
+
+    background_image = np.empty_like(stabilized_gif[0])
+    for i in range(len(c)):
+        for j in range(len(c[i])):
+            background_image[i][j] = stabilized_gif[c[i][j][len(c[i][j])//2][1]][i][j]
+
+    # np.save('background.npy', background_image)
+    return background_image
+
 
 def background_pixel(a, x, y):
     median_values = []
@@ -323,12 +344,20 @@ def background_pixel(a, x, y):
     return idx
 
 if __name__ == '__main__':
-    stabilized_gif = imageio.mimread('russ_dunk88/stabilized.gif', memtest=False)
+    stabilized_gif = imageio.mimread('blake_dunk/stabilized.gif', memtest=False)
 
-    # background_image = generate_background_image(stabilized_gif)
+    import time
+    start = time.time()
+    background_image = generate_background_image_max(stabilized_gif)
+    end = time.time()
+
+    print(end-start)
+
+    plt.imshow(background_image)
+    plt.show()
 
     # get smoothed trajectory
-    gauss20 = center_of_mass(stabilized_gif, debug=0, folder='russ_dunk')
+    #gauss20 = center_of_mass(stabilized_gif, debug=0, folder='russ_dunk')
 
     # get exaggerated polynomial
-    x,y,idxs_to_adjust = exaggerated_poly(gauss20)
+    #x,y,idxs_to_adjust = exaggerated_poly(gauss20)
