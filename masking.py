@@ -72,18 +72,6 @@ def get_masks(gif, xy, mask_rcnn_model, save=True, folder= './russ_dunk'):
                 if mask[xy[1],xy[0]] == True:
                     masks.append(mask)
         else:
-            '''
-            #for debugging
-            try:
-                os.makedirs("./russ_dunk/frame"+str(idx))
-            except FileExistsError:
-                # directory already exists
-                pass
-            for i,mask in enumerate(all_masks):
-                scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/all_mask' + str(i)+ '.jpg', mask * 255)
-            scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/prev_mask.jpg', masks[-1] * 255)
-            '''
-
             # combine masks with highest intersection percentage to account for Westbrook losing legs corner case
             player_mask_idx = np.argmax([intersection_count(masks[-1], i) for i in all_masks])
             mask_potentials = [intersection_percentage(masks[-1], i) for i in all_masks]
@@ -92,18 +80,11 @@ def get_masks(gif, xy, mask_rcnn_model, save=True, folder= './russ_dunk'):
             combined_mask = combine_masks(mask_potentials)
             masks.append(combined_mask)
 
-            '''
-            #for debugging
-            scipy.misc.imsave('./russ_dunk/frame' + str(idx) + '/combined_mask.jpg', combined_mask*255)
-            np.save('./russ_dunk/mask_vault/mask_vault'+str(idx)+'.npy', combined_mask)
-            scipy.misc.imsave('./russ_dunk/mask_vault/mask_vault'+str(idx)+'.jpg', combined_mask*255)
-            '''
 
 
     #save if asked
     if save:
-        for idx,mask in enumerate(masks):
-            np.save(folder + '/mask' + str(idx) + '.npy', mask)
+        np.save(folder + '/masks.npy', np.asarray(masks))
         to_gif = list(np.asarray(masks)*255)
         imageio.mimsave(folder + '/masks.gif', to_gif)
 

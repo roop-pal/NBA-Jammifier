@@ -79,6 +79,7 @@ if __name__ == '__main__':
     print("loading dunk gif...")
     gif = imageio.mimread(path_to_gif, memtest=False)
 
+
     if not load:
         print("click on player and press q to exit")
         # Open window and ask for xy coordinate contained in player
@@ -93,29 +94,44 @@ if __name__ == '__main__':
         print("creating masks...")
         masks = masking.get_masks(gif, xy, model, save=True, folder=save_folder)
 
+
+    gif = np.array(gif)[:,:600]
+    masks = masks[:,:600]
     assert(masks[0].shape == gif[0][:,:,0].shape)
+
 
 
     if load:
         print("loading homographies...")
         Hs = np.load(save_folder + '/Hs.npy')
         stabilized_gif = imageio.mimread(save_folder+'/stabilized.gif', memtest=False)
+        stab_height, stab_width = len(stabilized_gif[0]), len(stabilized_gif[0][0])
+        #Hs, stabilized_gif, stab_height, stab_width = stabilize.generate_hs(gif, save=True, folder='./' + save_folder)
     else:
         # Get homographies
         print("calculating and saving homographies...")
-        Hs, stabilized_gif = stabilize.generate_hs(gif, folder='./' + save_folder)
+        Hs, stabilized_gif, stab_height, stab_width = stabilize.generate_hs(gif, folder='./' + save_folder)
 
-    # Generate stabilized gif of masks
-    stabilized_masks = stabilize.generate_stabilized_masks(masks, Hs)
+
+    if load:
+        stabilized_masks = imageio.mimread(save_folder+'/stabilized_masks.gif')
+        #stabilized_masks = stabilize.generate_stabilized_masks(masks, Hs, stab_height, stab_width)
+        #imageio.mimsave(save_folder + '/stabilized_masks.gif', stabilized_masks)
+    else:
+        # Generate stabilized gif of masks
+        stabilized_masks = stabilize.generate_stabilized_masks(masks, Hs, stab_height, stab_width)
+        imageio.mimsave(save_folder+'/stabilized_masks.gif', stabilized_masks)
+
 
     # Get poly function for exaggeration
     print("calculating exaggeration...")
 
-    gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
+    #gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
+    gauss_kernel = 4
     xs, gauss, cs = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
 
     _, ys, idxs_to_adjust, first_poly = exaggeration.exaggerated_poly(gauss, exaggeration=exag)
-
+    
 
 
 
@@ -128,10 +144,10 @@ if __name__ == '__main__':
     plt.scatter(x_plot, gauss,color='red')
     plt.scatter(x_plot, ys,color='blue')
     plt.scatter(x_plot, first_poly, color='orange')
-    plt.savefig(save_folder+'/trajectoriesandrew.png')
+    plt.savefig(save_folder+'/trajectories.png')
 
-    start_jump_frame_num = idxs_to_adjust[0]
-    end_jump_frame_num = idxs_to_adjust[-1]
+    start_jump = idxs_to_adjust[0]
+    end_jump = idxs_to_adjust[-1]
 
 
 
@@ -140,10 +156,10 @@ if __name__ == '__main__':
 
     # Exaggerate movement
     print("exaggerating...")
-    stabilized_gif = imageio.mimread(save_folder + '/stabilized.gif', memtest=False)
 
-    adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump_frame_num, end_jump_frame_num, stabilized_gif)
+    adj_gif = exaggeration.overlay_gif(gif, Hs, masks, xs, ys, start_jump, end_jump, stabilized_gif, stabilized_masks)
     imageio.mimsave(save_folder+'/final.gif', adj_gif)
+
 
 
 

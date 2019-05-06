@@ -179,7 +179,7 @@ def exaggerated_poly(gauss20, exaggeration=50):
     y = np.asarray(gauss20)
 
     # poly = polynomial fit by RANSAC
-    _, poly = RANSAC_poly(x, y, 1000, 10)
+    _, poly = RANSAC_poly(x, y, 1000, 3)
     # y points for polynomial
     y_poly = poly(x)
 
@@ -187,7 +187,7 @@ def exaggerated_poly(gauss20, exaggeration=50):
     idxs_to_adjust = []
 
     for idx, pt in enumerate(gauss20):
-        if np.absolute(pt - y_poly[idx]) < 5:
+        if 0 < pt - y_poly[idx] < 5:
             idxs_to_adjust.append(idx)
 
     # Take left most point, highest point + exaggeration (but minus cause images), right most point, then fit new polynomial to those
@@ -224,6 +224,71 @@ def move_mask(mask_pts, background, player, y_adj):
   return new_frame
 
 
+def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif, stab_gif_masks):
+    overlayed = []
+    # reformat xs and ys
+    adj_centroids = np.zeros((len(xs), 2))
+    adj_centroids[:, 0], adj_centroids[:, 1] = xs, ys
+
+    y_start = 0
+
+    filled_points = {}
+
+    stab_gif_3 = np.array(stab_gif)[:, :, :, :3]
+    stab_gif_masks = np.array(stab_gif_masks)
+    print('inpainting background...')
+    for i in tqdm(range(len(original_gif))):
+        if jump_start_frame_num <= i <= jump_end_frame_num:
+            # remove background from image
+            player = cv2.bitwise_and(original_gif[i], original_gif[i], mask=shaped_mask(masks[i]))
+            # remove player from image
+            background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
+
+            # get all xy points on mask
+            frame_3_deep = player[:, :, :3]
+            mask_pts = zip(*np.nonzero(frame_3_deep))
+            mask_pts = list(mask_pts)
+            mask_pts = np.asarray(mask_pts)
+
+
+            # transform points based on inverse homography
+            adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
+            transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i]))
+            transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
+            transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
+            # calculate y_adj based on transformed parabola
+            if i == jump_start_frame_num:
+                y_start = int(transformed_centroid[1])
+            y_adj = abs(y_start - int(transformed_centroid[1]))
+
+
+            # FILL BLACK PARTS
+            for pt in mask_pts:
+                pt = pt[:2]
+                y = pt[0]
+                x = pt[1]
+                pt_xy = np.array([x,y])
+                transformed_pt = cv2.perspectiveTransform(np.array(pt_xy,dtype=np.float32).reshape(-1,1,2), Hs[i]).reshape(2)
+                y_h = int(transformed_pt[1])
+                x_h = int(transformed_pt[0])
+                if (y_h,x_h) in filled_points:
+                    background[y,x][:3] = filled_points[(y_h,x_h)]
+                else:
+                    rgb = stab_gif_3[background_pixel(stab_gif_3[:,y_h,x_h], stab_gif_masks[:,y_h,x_h])][y_h][x_h]
+                    filled_points[(y_h,x_h)] = rgb
+                    background[y,x][:3] = rgb
+
+            # move mask up
+            adj_player = move_mask(mask_pts, background, player, y_adj)
+
+            overlayed.append(adj_player)
+        else:
+            overlayed.append(original_gif[i])
+
+    return overlayed
+
+
+'''
 def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_frame_num, stab_gif):
     overlayed = []
     # reformat xs and ys
@@ -252,7 +317,7 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             mask_pts = np.asarray(mask_pts)
             # transform points based on inverse homography
             adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
-            transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i - 1]))
+            transformed_centroid = cv2.perspectiveTransform(adj_centroid, np.linalg.inv(Hs[i]))
             transformed_centroid = transformed_centroid.reshape(2)  # reshape back to normal
             transformed_centroid = np.array(transformed_centroid, dtype=np.uint8)
             # calculate y_adj based on transformed parabola
@@ -261,6 +326,7 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             y_adj = abs(y_start - int(transformed_centroid[1]))
             # move mask up
             adj_player = move_mask(mask_pts, background, player, y_adj)
+
 
 
             # FILL BLACK PARTS
@@ -283,11 +349,12 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             # overlay and append to gif
             overlayed.append(filled_image)
 
-            overlayed.append(adj_player)
+            #overlayed.append(adj_player)
         else:
             overlayed.append(original_gif[i])
 
     return overlayed
+'''
 
 
 def generate_background_image(stabilized_gif):
@@ -295,15 +362,16 @@ def generate_background_image(stabilized_gif):
 
     c = [[[] for i in range(a.shape[2])] for j in range(a.shape[1])]
     for i, frame in tqdm(enumerate(a), total=len(a)):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         for row in range(len(frame)):
             for col in range(len(frame[row])):
-                rgb = np.sum(frame[row][col])
+                rgb = gray[row][col]
                 if rgb != 0:
                     c[row][col] = sorted(c[row][col] + [(rgb, i)], key=lambda x: x[0])
 
     background_image = np.empty_like(stabilized_gif[0])
-    for i in range(len(c)):
-        for j in range(len(c[i])):
+    for i in range(background_image.shape[0]):
+        for j in range(background_image.shape[1]):
             background_image[i][j] = stabilized_gif[c[i][j][len(c[i][j])//2][1]][i][j]
 
     # plt.imshow(background_image)
@@ -333,15 +401,22 @@ def generate_background_image_max(stabilized_gif):
     return background_image
 
 
-def background_pixel(a, x, y):
+def background_pixel(stabilized_gif_pt, stabilized_gif_masks_pt):
     median_values = []
-    for i, v in enumerate(a):
+    for i, v in enumerate(stabilized_gif_pt):
         rgb = np.sum(v)
-        if rgb != 0:
+        if stabilized_gif_masks_pt.shape[0] > i:
+            mask_present = stabilized_gif_masks_pt[i]
+        else:
+            mask_present = False
+        if rgb != 0 and not mask_present:
             median_values.append((rgb, i))
     s = sorted(median_values, key=lambda x: x[0])
-    idx = s[len(s)//2][1]
-    return idx
+    if len(s) > 0:
+        idx = s[len(s)//2][1]
+        return idx
+    else:
+        return 0
 
 if __name__ == '__main__':
     stabilized_gif = imageio.mimread('blake_dunk/stabilized.gif', memtest=False)

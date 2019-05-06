@@ -115,7 +115,6 @@ def genSIFTMatchPairs(img1, img2):
     return pts1, pts2, matches[:250], kp1, kp2
 
 
-# TODO: USE PREVIOUS 10 to stabilize better
 #Roop
 def generate_homographies(gif, debug=2, folder='russ_dunk'):
     stabilized_gif = [gif[0]]
@@ -136,38 +135,75 @@ def generate_homographies(gif, debug=2, folder='russ_dunk'):
 
     return Hs, stabilized_gif
 
-def generate_stabilized_masks(masks, Hs):
+def generate_stabilized_masks(masks, Hs, height, width):
     stabilized_masks = []
-    prev_frame = masks[0]
     for i, mask in enumerate(masks):
-        if i == 0:
-            stabilized_masks.append(np.array(mask * 255, dtype=np.uint8))
-        else:
-            stabilized_masks.append(
-                cv2.warpPerspective(np.array(mask * 255, dtype=np.uint8), Hs[i - 1], prev_frame.shape[:2][::-1]))
-            prev_frame = stabilized_masks[-1]
+        stabilized_masks.append(
+                cv2.warpPerspective(np.array(mask * 255, dtype=np.uint8), Hs[i], (width, height)))
     return stabilized_masks
 
 #Max
-def generate_hs(gif, debug=2, folder='russ_dunk'):
+def generate_hs(gif, save=True, folder='russ_dunk'):
+
+    # Find Bounds
+
     stabilized_gif = [gif[0]]
     prev_frame = gif[0]
-    Hs = []
+    Hs = [np.identity(3)]
+    height = gif[0].shape[0]
+    width = gif[0].shape[1]
+    adjs = []
     for i in tqdm(range(1, len(gif))):
-        if debug == 2 and i % 20 == 0:
-            imageio.mimsave(folder + '/stabilized.gif', stabilized_gif)
-        base = prev_frame
+        #base = prev_frame
+        base = gif[0]
         img = gif[i]
         pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
-        H, mask = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+        H, _ = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)
+        nonzero = np.nonzero(img[:, :, 0])
+        nonzero_pts = np.zeros((nonzero[0].shape[0], 2))
+        nonzero_pts[:, 1] = nonzero[0]
+        nonzero_pts[:, 0] = nonzero[1]
+        new_nonzeros = cv2.perspectiveTransform(np.float32(nonzero_pts.reshape(-1,1,2)), H).reshape(-1,2)
+        bx, by, bwidth, bheight = cv2.boundingRect(new_nonzeros)
+        new_corners = np.array([[bx,by],[bx+bwidth,by],[bx,by+bheight],[bx+bwidth,by+bheight]])
+        xy_adj = [0,0]
+        if bx < 0:
+            Ht = np.array([[1, 0, -bx],[0, 1, 0],[0, 0, 1]])
+            H = Ht.dot(H)
+            new_corners[:,0] -= bx
+            xy_adj[0] = -bx
+        if by < 0:
+            Ht = np.array([[1, 0, 0], [0, 1, -by], [0, 0, 1]])
+            H = Ht.dot(H)
+            new_corners[:,1] -= by
+            xy_adj[1] = -by
+        adjs.append(xy_adj)
+        if bwidth + np.max(bx,0) > width:
+            width = bwidth + np.max(bx,0)
+        if bheight + np.max(by,0) > height:
+            height = bheight + np.max(by,0)
+        prev_frame = cv2.warpPerspective(img, H, (width,height))
+        stabilized_gif.append(prev_frame)
         Hs.append(H)
-        prev_frame = cv2.warpPerspective(img, H, img.shape[:2][::-1])
-        stabilized_gif.append(cv2.warpPerspective(img, H, img.shape[:2][::-1]))
-
-    if debug == 2:
+    max_height = 0
+    max_width = 0
+    for i,frame in enumerate(stabilized_gif):
+        x_adj = np.sum(np.array(adjs)[i:,0])
+        y_adj = np.sum(np.array(adjs)[i:,1])
+        if max_height < frame.shape[0] + y_adj: max_height = frame.shape[0] + y_adj
+        if max_width < frame.shape[1] + x_adj: max_width = frame.shape[1] + x_adj
+    for i, frame in enumerate(stabilized_gif):
+        x_adj = np.sum(np.array(adjs)[i:, 0])
+        y_adj = np.sum(np.array(adjs)[i:, 1])
+        new = np.zeros((max_height, max_width, frame.shape[2]))
+        new[y_adj:y_adj+frame.shape[0], x_adj:x_adj+frame.shape[1]] = frame
+        stabilized_gif[i] = new
+        Ht = np.array([[1, 0, x_adj], [0, 1, y_adj], [0, 0, 1]])
+        Hs[i] = Ht.dot(Hs[i])
+    if save == True:
         np.save(folder + '/Hs.npy', Hs)
-
-    return Hs, stabilized_gif
+        imageio.mimsave(folder+'/stabilized.gif', stabilized_gif)
+    return Hs, stabilized_gif, max_height, max_width
 
 
 if __name__ == '__main__':
