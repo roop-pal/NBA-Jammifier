@@ -249,7 +249,12 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             mask_pts = zip(*np.nonzero(frame_3_deep))
             mask_pts = list(mask_pts)
             mask_pts = np.asarray(mask_pts)
-
+            by, bx, bheight, bwidth = cv2.boundingRect(mask_pts[:,:2].reshape(-1,1,2))
+            # calculate box around mask pts
+            new_mask_pts = []
+            for x in range(bx-30,bx+bwidth+30):
+                for y in range(by-30,by+bheight+30):
+                    new_mask_pts.append((y,x))
 
             # transform points based on inverse homography
             adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform
@@ -263,11 +268,13 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
 
 
             # FILL BLACK PARTS
-            for pt in mask_pts:
+            for pt in new_mask_pts:
                 pt = pt[:2]
                 y = pt[0]
                 x = pt[1]
                 pt_xy = np.array([x,y])
+                if not(0 < y < background.shape[0]) or not(0 < x < background.shape[1]):
+                    continue
                 transformed_pt = cv2.perspectiveTransform(np.array(pt_xy,dtype=np.float32).reshape(-1,1,2), Hs[i]).reshape(2)
                 y_h = int(transformed_pt[1])
                 x_h = int(transformed_pt[0])
