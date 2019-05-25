@@ -3,7 +3,7 @@ Computer vision application which takes in NBA dunk videos and exaggerates the v
 
 
 ## How to Run
-Run this code: `Max pls insert`
+Run this code: `python main.py -g [path to gif] -f [path to save folder] -m [path to Mask RCNN folder] -e [Exaggeration number (pixels)] -l [Load? For reruns or debugging. True or leave blank]`
 
 ## Results
 | Original                            | Exaggerated                       |
