@@ -79,7 +79,6 @@ if __name__ == '__main__':
     print("loading dunk gif...")
     gif = imageio.mimread(path_to_gif, memtest=False)
 
-
     if not load:
         print("click on player and press q to exit")
         # Open window and ask for xy coordinate contained in player
@@ -95,8 +94,16 @@ if __name__ == '__main__':
         masks = masking.get_masks(gif, xy, model, save=True, folder=save_folder)
 
 
-    gif = np.array(gif)[:,:600]
-    masks = masks[:,:600]
+    #gif = list(np.array(gif)[20:,:600])
+    #gif.pop(34)
+    #gif.pop(39)
+
+
+    #masks = list(masks[20:,:600])
+    #masks.pop(34)
+    #masks.pop(39)
+    #masks = np.array(masks)
+
     assert(masks[0].shape == gif[0][:,:,0].shape)
 
 
@@ -126,8 +133,8 @@ if __name__ == '__main__':
     # Get poly function for exaggeration
     print("calculating exaggeration...")
 
-    #gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
-    gauss_kernel = 4
+    gauss_kernel = 20 if len(gif) > 200 else len(gif)//10
+    #gauss_kernel = 4
     xs, gauss, cs = exaggeration.center_of_mass(stabilized_masks, gauss_kernel)
 
     _, ys, idxs_to_adjust, first_poly = exaggeration.exaggerated_poly(gauss, exaggeration=exag)

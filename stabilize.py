@@ -154,8 +154,7 @@ def generate_hs(gif, save=True, folder='russ_dunk'):
     width = gif[0].shape[1]
     adjs = []
     for i in tqdm(range(1, len(gif))):
-        #base = prev_frame
-        base = gif[0]
+        base = prev_frame
         img = gif[i]
         pts1, pts2, matches, kp1, kp2 = genSIFTMatchPairs(img, base)
         H, _ = cv2.findHomography(pts1, pts2, cv2.RANSAC, 5.0)

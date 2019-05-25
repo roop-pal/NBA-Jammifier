@@ -179,7 +179,7 @@ def exaggerated_poly(gauss20, exaggeration=50):
     y = np.asarray(gauss20)
 
     # poly = polynomial fit by RANSAC
-    _, poly = RANSAC_poly(x, y, 1000, 3)
+    _, poly = RANSAC_poly(x, y, 1000, 5)
     # y points for polynomial
     y_poly = poly(x)
 
@@ -244,17 +244,28 @@ def overlay_gif(original_gif, Hs, masks, xs, ys, jump_start_frame_num, jump_end_
             # remove player from image
             background = cv2.bitwise_and(original_gif[i], original_gif[i], mask=1 - shaped_mask(masks[i]))
 
+            mask_pts = zip(*np.nonzero(masks[i]))
+            mask_pts = list(mask_pts)
+            mask_pts = np.asarray(mask_pts)
+            dilated = scipy.ndimage.morphology.binary_dilation(masks[i], iterations=55)
+            new_mask_pts = zip(*np.nonzero(dilated))
+            new_mask_pts = list(new_mask_pts)
+            new_mask_pts = np.asarray(new_mask_pts)
+
+            '''
             # get all xy points on mask
             frame_3_deep = player[:, :, :3]
             mask_pts = zip(*np.nonzero(frame_3_deep))
             mask_pts = list(mask_pts)
             mask_pts = np.asarray(mask_pts)
+            
             by, bx, bheight, bwidth = cv2.boundingRect(mask_pts[:,:2].reshape(-1,1,2))
             # calculate box around mask pts
             new_mask_pts = []
             for x in range(bx-30,bx+bwidth+30):
                 for y in range(by-30,by+bheight+30):
                     new_mask_pts.append((y,x))
+            '''
 
             # transform points based on inverse homography
             adj_centroid = np.asarray(adj_centroids[i], dtype=np.float32).reshape(-1, 1, 2) # reshape for perspectiveTransform

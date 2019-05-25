@@ -2,8 +2,7 @@ import numpy as np
 from tqdm import tqdm
 
 import imageio
-import scipy.misc
-import os
+import player_choose
 
 
 def nice_mask(r):
@@ -11,6 +10,7 @@ def nice_mask(r):
     #Output: list of numpy arrays representing human masks
 
     # Remove non-person masks
+    '''
     idx = 0
     for i in r['class_ids']:
         if not (i == 1):
@@ -20,6 +20,7 @@ def nice_mask(r):
             r['masks'] = np.delete(r['masks'], idx, 2)
         else:
             idx += 1
+    '''
 
     nice_masks = np.array(np.dsplit(r['masks'], r['masks'].shape[-1])).reshape(
         (r['masks'].shape[-1], r['masks'].shape[0], r['masks'].shape[1]))
@@ -74,11 +75,15 @@ def get_masks(gif, xy, mask_rcnn_model, save=True, folder= './russ_dunk'):
         else:
             # combine masks with highest intersection percentage to account for Westbrook losing legs corner case
             player_mask_idx = np.argmax([intersection_count(masks[-1], i) for i in all_masks])
-            mask_potentials = [intersection_percentage(masks[-1], i) for i in all_masks]
-            mask_potentials = [all_masks[mask_potentials.index(i)] for idx, i in enumerate(mask_potentials) if i > .8 and idx != player_mask_idx]
-            mask_potentials.append(all_masks[player_mask_idx])
-            combined_mask = combine_masks(mask_potentials)
-            masks.append(combined_mask)
+            masks.append(all_masks[player_mask_idx])
+            #mask_potentials = [intersection_percentage(masks[-1], i) for i in all_masks]
+            #mask_potentials = [all_masks[mask_potentials.index(i)] for idx, i in enumerate(mask_potentials) if i > .8 and idx != player_mask_idx]
+            #combined_mask = combine_masks(mask_potentials)
+            #masks.append(combined_mask)
+        if save:
+            np.save(folder + '/masks.npy', np.asarray(masks))
+            to_gif = list(np.asarray(masks) * 255)
+            imageio.mimsave(folder + '/masks.gif', to_gif)
 
 
 
