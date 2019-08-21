@@ -1,3 +1,4 @@
+# Written by Max Ogryzko and Roop Pal
 import cv2
 import imageio
 import os
