@@ -11,3 +11,7 @@ Run this code: `python main.py -g [path to gif] -f [path to save folder] -m [pat
 | ![](results/Positive1_original.gif) | ![](results/Positive1a.gif)         |
 | ![](results/Positive2_original.gif) | ![](results/Positive2a.gif)         |
 | ![](results/Negative_original.gif)  | ![](results/Negative.gif)           |
+
+
+## Detailed Explanation
+https://maxogryzko.com/projects/jump-exaggeration-app/more-info
