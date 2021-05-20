@@ -9,7 +9,7 @@ Run this code: `python main.py -g [path to gif] -f [path to save folder] -m [pat
 | Original                            | Exaggerated                       |
 |-------------------------------------|-------------------------------------|
 | ![](results/Positive1_original.gif) | ![](results/Positive1a.gif)         |
-| ![](results/Positive2_original.gif) | ![](results/Positive2a.gif)         |
+| ![](results/Positive2_original.gif) | ![](results/blake_dunk.gif)         |
 | ![](results/Negative_original.gif)  | ![](results/Negative.gif)           |
 
 
